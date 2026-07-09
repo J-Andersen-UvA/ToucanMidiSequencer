@@ -1217,7 +1217,7 @@ void FEditingSessionSequencerHelper::BakeAndSaveAnimation(const FString& AnimNam
     ExportOptions->bExportAttributeCurves = true;
     ExportOptions->bTimecodeRateOverride = false;
     ExportOptions->bUseCustomFrameRate = false;
-    ExportOptions->bBakeTimecode = false;
+    ExportOptions->bBakeTimecode = true;
 
     // Use the active editor Sequencer (IMovieScenePlayer) for evaluation
     FAnimExportSequenceParameters Params;
