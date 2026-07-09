@@ -60,6 +60,8 @@ public:
 private:
     int32 CurrentIndex = INDEX_NONE;
     mutable int32 CachedProcessedCount = -1; // -1 means invalid cache
+    TSet<FString> KnownProcessedPaths;
+    TMap<FString, FString> KnownCheckpointPaths;
     FSeqQueue() { Load(); }
 
     bool CheckBoundsIndex(int32 Index) const { return Index >= 0 && Index < Items.Num(); }

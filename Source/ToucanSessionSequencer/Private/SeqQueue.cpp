@@ -5,6 +5,8 @@
 void FSeqQueue::Load()
 {
     Items.Reset();
+    KnownProcessedPaths.Reset();
+    KnownCheckpointPaths.Reset();
     TArray<FString> Paths;
     TArray<FString> ProcessedPaths;
     TArray<FString> CheckpointEntries;
@@ -19,20 +21,19 @@ void FSeqQueue::Load()
     GConfig->GetArray(SeqCfg::Section, TEXT("CheckpointQueue"), CheckpointEntries, Ini);
     GConfig->GetInt(SeqCfg::Section, SeqCfg::CurrentIndexKey, CurrentIndex, Ini);
 
-    TSet<FString> ProcessedSet;
     for (const FString& ProcessedPath : ProcessedPaths)
     {
-        ProcessedSet.Add(ProcessedPath);
+        KnownProcessedPaths.Add(ProcessedPath);
     }
 
-    TMap<FString, FString> CheckpointMap;
     for (const FString& Entry : CheckpointEntries)
     {
         FString QueuePath;
         FString CheckpointPath;
         if (Entry.Split(TEXT("="), &QueuePath, &CheckpointPath) && !QueuePath.IsEmpty() && !CheckpointPath.IsEmpty())
         {
-            CheckpointMap.Add(QueuePath, CheckpointPath);
+            KnownCheckpointPaths.Add(QueuePath, CheckpointPath);
+            KnownProcessedPaths.Remove(QueuePath);
         }
     }
     
@@ -42,8 +43,8 @@ void FSeqQueue::Load()
         FQueuedAnim Q;
         Q.Path = P;
         Q.DisplayName = FText::FromString(P.GetAssetName());
-        Q.bProcessed = ProcessedSet.Contains(S);
-        if (const FString* CheckpointPath = CheckpointMap.Find(S))
+        Q.bProcessed = KnownProcessedPaths.Contains(S);
+        if (const FString* CheckpointPath = KnownCheckpointPaths.Find(S))
         {
             Q.bCheckpointed = true;
             Q.CheckpointPath = *CheckpointPath;
@@ -66,14 +67,16 @@ void FSeqQueue::Save() const
     {
         const FString PathString = Q.Path.ToString();
         Paths.Add(PathString);
-        if (Q.bProcessed)
-        {
-            ProcessedPaths.Add(PathString);
-        }
-        if (Q.bCheckpointed && !Q.CheckpointPath.IsEmpty())
-        {
-            CheckpointEntries.Add(PathString + TEXT("=") + Q.CheckpointPath);
-        }
+    }
+    ProcessedPaths.Reserve(KnownProcessedPaths.Num());
+    for (const FString& PathString : KnownProcessedPaths)
+    {
+        ProcessedPaths.Add(PathString);
+    }
+    CheckpointEntries.Reserve(KnownCheckpointPaths.Num());
+    for (const TPair<FString, FString>& Entry : KnownCheckpointPaths)
+    {
+        CheckpointEntries.Add(Entry.Key + TEXT("=") + Entry.Value);
     }
 
 #if WITH_EDITOR
@@ -104,6 +107,13 @@ void FSeqQueue::Add(const FAssetData& A)
     FQueuedAnim Q;
     Q.Path = A.ToSoftObjectPath();
     Q.DisplayName = MakeDisplayName(A);
+    const FString PathString = Q.Path.ToString();
+    Q.bProcessed = KnownProcessedPaths.Contains(PathString);
+    if (const FString* CheckpointPath = KnownCheckpointPaths.Find(PathString))
+    {
+        Q.bCheckpointed = true;
+        Q.CheckpointPath = *CheckpointPath;
+    }
     if (!Items.Contains(Q))
     {
         Items.Add(MoveTemp(Q));
@@ -117,6 +127,13 @@ void FSeqQueue::AddPath(const FSoftObjectPath& P, const FText& Nice)
 {
     if (!P.IsValid()) return;
     FQueuedAnim Q; Q.Path = P; Q.DisplayName = Nice;
+    const FString PathString = Q.Path.ToString();
+    Q.bProcessed = KnownProcessedPaths.Contains(PathString);
+    if (const FString* CheckpointPath = KnownCheckpointPaths.Find(PathString))
+    {
+        Q.bCheckpointed = true;
+        Q.CheckpointPath = *CheckpointPath;
+    }
     if (!Items.Contains(Q))
     {
         Items.Add(MoveTemp(Q));
@@ -229,10 +246,17 @@ void FSeqQueue::SetProcessed(const FSoftObjectPath& Path, bool bProcessed)
     }
 
     Items[Index].bProcessed = bProcessed;
+    const FString PathString = Path.ToString();
     if (bProcessed)
     {
         Items[Index].bCheckpointed = false;
         Items[Index].CheckpointPath.Reset();
+        KnownProcessedPaths.Add(PathString);
+        KnownCheckpointPaths.Remove(PathString);
+    }
+    else
+    {
+        KnownProcessedPaths.Remove(PathString);
     }
 
     CachedProcessedCount = -1;
@@ -250,6 +274,18 @@ void FSeqQueue::SetCheckpoint(const FSoftObjectPath& Path, const FString& Checkp
 
     Items[Index].bCheckpointed = !CheckpointPath.IsEmpty();
     Items[Index].CheckpointPath = CheckpointPath;
+    const FString PathString = Path.ToString();
+    if (CheckpointPath.IsEmpty())
+    {
+        KnownCheckpointPaths.Remove(PathString);
+    }
+    else
+    {
+        Items[Index].bProcessed = false;
+        KnownProcessedPaths.Remove(PathString);
+        KnownCheckpointPaths.Add(PathString, CheckpointPath);
+        CachedProcessedCount = -1;
+    }
     Save();
     QueueChanged.Broadcast();
 }
@@ -264,6 +300,7 @@ void FSeqQueue::ClearCheckpoint(const FSoftObjectPath& Path)
 
     Items[Index].bCheckpointed = false;
     Items[Index].CheckpointPath.Reset();
+    KnownCheckpointPaths.Remove(Path.ToString());
     Save();
     QueueChanged.Broadcast();
 }
