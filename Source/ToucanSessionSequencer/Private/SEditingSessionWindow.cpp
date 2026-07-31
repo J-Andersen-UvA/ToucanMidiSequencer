@@ -30,16 +30,37 @@
 #include "Exporters/FbxExportOption.h"
 #include "Animation/AnimSequence.h"
 #include "EditingSessionDelegates.h"
+#include "ToucanSessionSequencerStyle.h"
+
+namespace
+{
+    FName GetToucanIconBrushName(const FString& IconName)
+    {
+        if (IconName == TEXT("controlRigWhite"))
+        {
+            return TEXT("Toucan.ControlRig");
+        }
+
+        if (IconName == TEXT("queueClipboardWhite"))
+        {
+            return TEXT("Toucan.QueueClipboard");
+        }
+
+        if (IconName == TEXT("toucanWhite"))
+        {
+            return TEXT("Toucan.TabIcon");
+        }
+
+        return FName(*IconName);
+    }
+}
 
 TSharedRef<SWidget> SEditingSessionWindow::AddIconHere(const FString& IconName, const FVector2D& Size)
 {
-    const FString ContentDir = IPluginManager::Get().FindPlugin(TEXT("ToucanSessionSequencer"))->GetBaseDir() / TEXT("Resources/Icons");
-    const FString IconPath = ContentDir / IconName + TEXT(".svg");
-
-    const FVector2D IconSize(18.f, 18.f);
     return SNew(SImage)
-        .Image(new FSlateVectorImageBrush(IconPath, IconSize, FLinearColor::White))
-        .ColorAndOpacity(FLinearColor::White);
+        .Image(FToucanSessionSequencerStyle::GetBrush(GetToucanIconBrushName(IconName)))
+        .ColorAndOpacity(FLinearColor::White)
+        .DesiredSizeOverride(Size);
 }
 
 TSharedRef<SWidget> SEditingSessionWindow::AddIconAndTextHere(
@@ -51,21 +72,9 @@ TSharedRef<SWidget> SEditingSessionWindow::AddIconAndTextHere(
 )
 {
     const FVector2D IconSize(16.f, 16.f);
-    const FSlateBrush* IconBrush = nullptr;
-
-    if (bUseAppStyleIcon)
-    {
-        IconBrush = FAppStyle::GetBrush(*IconName);
-    }
-    else
-    {
-        IconBrush = new FSlateVectorImageBrush(
-            IPluginManager::Get().FindPlugin(TEXT("ToucanSessionSequencer"))->GetBaseDir()
-            / TEXT("Resources/Icons") / (IconName + TEXT(".svg")),
-            IconSize,
-            IconColor
-        );
-    }
+    const FSlateBrush* IconBrush = bUseAppStyleIcon
+        ? FAppStyle::GetBrush(*IconName)
+        : FToucanSessionSequencerStyle::GetBrush(GetToucanIconBrushName(IconName));
 
     return SNew(SHorizontalBox)
         + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
@@ -89,53 +98,12 @@ TSharedRef<SWidget> SEditingSessionWindow::AddIconAndTextHere(
 
 TSharedRef<SWidget> SEditingSessionWindow::AddIconAndTextHere(const FString& IconName, const FString& Text, bool bBold, bool bUseAppStyleIcon)
 {
-    const FVector2D IconSize(16.f, 16.f);
-    const FSlateBrush* IconBrush = nullptr;
-
-    if (bUseAppStyleIcon)
-    {
-        IconBrush = FAppStyle::GetBrush(*IconName);
-    }
-    else
-    {
-        IconBrush = new FSlateVectorImageBrush(
-            IPluginManager::Get().FindPlugin(TEXT("ToucanSessionSequencer"))->GetBaseDir()
-            / TEXT("Resources/Icons") / (IconName + TEXT(".svg")),
-            IconSize,
-            FLinearColor::White);
-    }
-
-    return SNew(SHorizontalBox)
-        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
-        [
-            SNew(SImage)
-                .Image(IconBrush)
-                .ColorAndOpacity(FLinearColor::White)
-                .DesiredSizeOverride(IconSize)
-        ]
-        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-        [
-            SNew(STextBlock)
-                .Text(FText::FromString(Text))
-                .Font(FCoreStyle::GetDefaultFontStyle(bBold ? "Bold" : "Regular", 10))
-        ];
+    return AddIconAndTextHere(IconName, Text, bBold, bUseAppStyleIcon, FLinearColor::White);
 }
 
 TSharedRef<SWidget> SEditingSessionWindow::AddIconAndTextHere(const FString& IconName, const FString& Text, const bool bBold)
 {
-    return SNew(SHorizontalBox)
-        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
-        [
-            AddIconHere(IconName)
-        ]
-        + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-        [
-            SNew(STextBlock)
-                .Text(FText::FromString(Text))
-                .Font(bBold
-                    ? FCoreStyle::GetDefaultFontStyle("Bold", 10)
-                    : FCoreStyle::GetDefaultFontStyle("Regular", 10))
-        ];
+    return AddIconAndTextHere(IconName, Text, bBold, false, FLinearColor::White);
 }
 
 TSharedRef<SWidget> SEditingSessionWindow::AddIconAndTextHere(const FString& IconName, const FString& Text)
@@ -701,6 +669,8 @@ void SEditingSessionWindow::RefreshQueue()
 TSharedRef<ITableRow> SEditingSessionWindow::OnMakeRow(
     TSharedPtr<FQueuedAnim> Item, const TSharedRef<STableViewBase>& Owner)
 {
+    const TWeakPtr<SWidget> WeakWindow = AsShared();
+
     return SNew(STableRow<TSharedPtr<FQueuedAnim>>, Owner)
         [
             SNew(SHorizontalBox)
@@ -711,11 +681,15 @@ TSharedRef<ITableRow> SEditingSessionWindow::OnMakeRow(
                     // Load this specific animation
                     SNew(SButton)
                         .Text(FText::FromString(TEXT("->")))
-                        .IsEnabled_Lambda([this, Item]() {
+                        .IsEnabled_Lambda([this, WeakWindow, Item]() {
+                        if (!WeakWindow.IsValid())
+                            return false;
                         int32 RowIndex = Rows.IndexOfByKey(Item);
                         return RowIndex != FSeqQueue::Get().GetCurrentIndex(); // disable for current
                             })
-                        .OnClicked_Lambda([this, Item]() {
+                        .OnClicked_Lambda([this, WeakWindow, Item]() {
+                        if (!WeakWindow.IsValid())
+                            return FReply::Handled();
                         int32 RowIndex = Rows.IndexOfByKey(Item);
                         if (RowIndex != INDEX_NONE)
                         {
@@ -732,7 +706,9 @@ TSharedRef<ITableRow> SEditingSessionWindow::OnMakeRow(
                 .Padding(8.f, 0.f, 0.f, 0.f)
                 [
                     SNew(STextBlock)
-                        .Text_Lambda([this, Item]() {
+                        .Text_Lambda([this, WeakWindow, Item]() {
+                        if (!WeakWindow.IsValid())
+                            return FText::GetEmpty();
                         if (!Item.IsValid())
                             return FText::GetEmpty();
 
@@ -751,7 +727,9 @@ TSharedRef<ITableRow> SEditingSessionWindow::OnMakeRow(
 
                         return FText::FromString(Label);
                             })
-                        .ColorAndOpacity_Lambda([this, Item]() {
+                        .ColorAndOpacity_Lambda([this, WeakWindow, Item]() {
+                        if (!WeakWindow.IsValid())
+                            return FLinearColor::White;
                         if (!Item.IsValid())
                             return FLinearColor::White;
 
@@ -784,7 +762,9 @@ TSharedRef<ITableRow> SEditingSessionWindow::OnMakeRow(
                             ? EVisibility::Visible
                             : EVisibility::Collapsed;
                             })
-                        .OnClicked_Lambda([this, Item]() {
+                        .OnClicked_Lambda([this, WeakWindow, Item]() {
+                        if (!WeakWindow.IsValid())
+                            return FReply::Handled();
                         if (Item.IsValid())
                         {
                             int32 RowIndex = Rows.IndexOfByKey(Item);
@@ -811,7 +791,9 @@ TSharedRef<ITableRow> SEditingSessionWindow::OnMakeRow(
                             ? EVisibility::Visible
                             : EVisibility::Collapsed;
                             })
-                        .OnClicked_Lambda([this, Item]() {
+                        .OnClicked_Lambda([this, WeakWindow, Item]() {
+                        if (!WeakWindow.IsValid())
+                            return FReply::Handled();
                         if (Item.IsValid())
                         {
                             UObject* Asset = UEditorAssetLibrary::LoadAsset(Item->Path.ToString());
@@ -859,6 +841,7 @@ TSharedRef<ITableRow> SEditingSessionWindow::OnMakeRow(
 
 FReply SEditingSessionWindow::OnSelectSkeletalMesh()
 {
+    const TWeakPtr<SWidget> WeakWindow = AsShared();
     FContentBrowserModule& CB = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 
     FOpenAssetDialogConfig Config;
@@ -868,8 +851,13 @@ FReply SEditingSessionWindow::OnSelectSkeletalMesh()
 
     CB.Get().CreateOpenAssetDialog(
         Config,
-        FOnAssetsChosenForOpen::CreateLambda([this](const TArray<FAssetData>& Selected)
+        FOnAssetsChosenForOpen::CreateLambda([this, WeakWindow](const TArray<FAssetData>& Selected)
         {
+            if (!WeakWindow.IsValid())
+            {
+                return;
+            }
+
             if (Selected.Num() > 0)
             {
                 SelectedMesh = Cast<USkeletalMesh>(Selected[0].GetAsset());
@@ -885,6 +873,7 @@ FReply SEditingSessionWindow::OnSelectSkeletalMesh()
 
 FReply SEditingSessionWindow::OnSelectRig()
 {
+    const TWeakPtr<SWidget> WeakWindow = AsShared();
     FContentBrowserModule& CB = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 
     FOpenAssetDialogConfig Config;
@@ -897,8 +886,13 @@ FReply SEditingSessionWindow::OnSelectRig()
 
     CB.Get().CreateOpenAssetDialog(
         Config,
-        FOnAssetsChosenForOpen::CreateLambda([this](const TArray<FAssetData>& Selected)
+        FOnAssetsChosenForOpen::CreateLambda([this, WeakWindow](const TArray<FAssetData>& Selected)
             {
+                if (!WeakWindow.IsValid())
+                {
+                    return;
+                }
+
                 if (Selected.Num() > 0)
                 {
                     SelectedRig = Selected[0].GetAsset(); // store the blueprint asset
@@ -997,6 +991,7 @@ FReply SEditingSessionWindow::OnBakeSaveAnimationTo()
 
     const FString DefaultBakeFolder = BakeSaveToFolder.IsEmpty() ? FOutputHelper::Get() : BakeSaveToFolder;
     TSharedPtr<FString> PickedContentFolder = MakeShared<FString>(DefaultBakeFolder);
+    const TWeakPtr<SWidget> WeakWindow = AsShared();
 
     FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
     IContentBrowserSingleton& ContentBrowser = ContentBrowserModule.Get();
@@ -1028,8 +1023,14 @@ FReply SEditingSessionWindow::OnBakeSaveAnimationTo()
             [
                 SNew(SButton)
                     .Text(FText::FromString(TEXT("OK")))
-                    .OnClicked_Lambda([this, PickerWindow, PickedContentFolder, AnimName, SourceAnimPath]()
+                    .OnClicked_Lambda([this, WeakWindow, PickerWindow, PickedContentFolder, AnimName, SourceAnimPath]()
                     {
+                        if (!WeakWindow.IsValid())
+                        {
+                            PickerWindow->RequestDestroyWindow();
+                            return FReply::Handled();
+                        }
+
                         const FString DestinationFolder = PickedContentFolder.IsValid()
                             ? PickedContentFolder->Replace(TEXT("//"), TEXT("/"))
                             : FString();
@@ -1092,6 +1093,7 @@ FReply SEditingSessionWindow::OnCheckpointCurrentAnimation()
     }
 
     TSharedPtr<FString> PickedContentFolder = MakeShared<FString>(DefaultCheckpointFolder);
+    const TWeakPtr<SWidget> WeakWindow = AsShared();
 
     FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
     IContentBrowserSingleton& ContentBrowser = ContentBrowserModule.Get();
@@ -1123,8 +1125,14 @@ FReply SEditingSessionWindow::OnCheckpointCurrentAnimation()
             [
                 SNew(SButton)
                     .Text(FText::FromString(TEXT("OK")))
-                    .OnClicked_Lambda([this, PickerWindow, PickedContentFolder, SourceAnimPath]()
+                    .OnClicked_Lambda([this, WeakWindow, PickerWindow, PickedContentFolder, SourceAnimPath]()
                     {
+                        if (!WeakWindow.IsValid())
+                        {
+                            PickerWindow->RequestDestroyWindow();
+                            return FReply::Handled();
+                        }
+
                         const FString CheckpointPath = FEditingSessionSequencerHelper::SaveCheckpointForCurrentSequence(
                             SourceAnimPath,
                             *PickedContentFolder);
@@ -1608,6 +1616,7 @@ void SEditingSessionWindow::ExportAnimSequencesToFolder(const FString& sourceCon
 
 FReply SEditingSessionWindow::OnExportFolder()
 {
+    const TWeakPtr<SWidget> WeakWindow = AsShared();
     FContentBrowserModule& contentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
     IContentBrowserSingleton& contentBrowser = contentBrowserModule.Get();
 
@@ -1640,8 +1649,14 @@ FReply SEditingSessionWindow::OnExportFolder()
             [
                 SNew(SButton)
                 .Text(FText::FromString(TEXT("OK")))
-                .OnClicked_Lambda([this, pickerWindow, pickedContentFolder]()
+                .OnClicked_Lambda([this, WeakWindow, pickerWindow, pickedContentFolder]()
                 {
+                    if (!WeakWindow.IsValid())
+                    {
+                        pickerWindow->RequestDestroyWindow();
+                        return FReply::Handled();
+                    }
+
                     const FString sourceContentFolder = *pickedContentFolder;
                     pickerWindow->RequestDestroyWindow();
 

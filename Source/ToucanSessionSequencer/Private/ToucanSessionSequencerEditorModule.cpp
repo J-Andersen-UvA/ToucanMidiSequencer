@@ -19,10 +19,12 @@
 #include "Editor.h"
 #include "SeqQueue.h"
 #include "SEditingSessionWindow.h"
-#include "Interfaces/IPluginManager.h"
-#include "Styling/SlateStyleRegistry.h"
 #include "ToucanMidiRigBinder.h"
 #include "SequencerControlSubsystem.h"
+#include "ToucanSessionSequencerStyle.h"
+#if WITH_MIDIMAPPER
+#include "MidiMappingManager.h"
+#endif
 
 static const FName ToucanEditingTabName(TEXT("ToucanEditingSession"));
 
@@ -31,25 +33,14 @@ class FToucanSequencerEditorModule : public IModuleInterface
 public:
     virtual void StartupModule() override
     {
-        // Do styling
-        FSlateStyleSet* Style = new FSlateStyleSet("ToucanSessionSequencerStyle");
-        Style->SetContentRoot(IPluginManager::Get().FindPlugin("ToucanSessionSequencer")->GetBaseDir() / TEXT("Resources"));
-        Style->Set(
-            "ToucanSessionSequencer.TabIcon",
-            new FSlateVectorImageBrush(
-                Style->RootToContentDir(TEXT("Icons/toucanWhite"), TEXT(".svg")),
-                FVector2D(16.0f, 16.0f),
-                FLinearColor::White
-            )
-        );
-        FSlateStyleRegistry::RegisterSlateStyle(*Style);
+        FToucanSessionSequencerStyle::Initialize();
 
         // Spawn tab
         FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
             ToucanEditingTabName,
             FOnSpawnTab::CreateRaw(this, &FToucanSequencerEditorModule::SpawnEditingSessionTab))
             .SetDisplayName(FText::FromString(TEXT("Editing Session")))
-            .SetIcon(FSlateIcon("ToucanSessionSequencerStyle", "ToucanSessionSequencer.TabIcon"))
+            .SetIcon(FSlateIcon(FToucanSessionSequencerStyle::GetStyleSetName(), "Toucan.TabIcon"))
             .SetMenuType(ETabSpawnerMenuType::Hidden);
 
         // Add to main menu (e.g. Window → Developer Tools)
@@ -83,6 +74,13 @@ public:
         UToolMenus::UnRegisterStartupCallback(this);
         UToolMenus::UnregisterOwner(this);
         FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(ToucanEditingTabName);
+#if WITH_MIDIMAPPER
+        if (UMidiMappingManager* Manager = UMidiMappingManager::Get())
+        {
+            Manager->UnregisterTopic(TEXT("Rig."));
+        }
+#endif
+        FToucanSessionSequencerStyle::Shutdown();
     }
 
 private:

@@ -21,6 +21,16 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogToucanRigBinder, Log, All);
 
+namespace
+{
+#if WITH_MIDIMAPPER
+    void HandleRigMidiControlInput(const FMidiControlValue& V)
+    {
+        FToucanMidiRigBinder::OnMidiControlInput(V.Id, V);
+    }
+#endif
+}
+
 static UControlRig* LoadControlRigFromPath(const FString& RigPath)
 {
     if (RigPath.IsEmpty())
@@ -45,6 +55,15 @@ static UControlRig* LoadControlRigFromPath(const FString& RigPath)
 #if WITH_MIDIMAPPER
 void FToucanMidiRigBinder::RegisterRigControls()
 {
+#if WITH_MIDIMAPPER
+    UMidiMappingManager* Manager = UMidiMappingManager::Get();
+    if (!Manager)
+    {
+        return;
+    }
+
+    Manager->UnregisterTopic(TEXT("Rig."));
+
     FString RigPath;
     GConfig->GetString(TEXT("ToucanEditingSession"), TEXT("LastSelectedRig"), RigPath, GEditorPerProjectIni);
     if (RigPath.IsEmpty()) { UE_LOG(LogToucanRigBinder, Warning, TEXT("No rig path in config")); return; }
@@ -58,32 +77,19 @@ void FToucanMidiRigBinder::RegisterRigControls()
     const TArray<FRigControlElement*> Controls = Hierarchy->GetControls();
     if (Controls.IsEmpty()) { UE_LOG(LogToucanRigBinder, Warning, TEXT("Rig %s has no controls"), *ControlRig->GetName()); return; }
 
-#if WITH_MIDIMAPPER
-    if (UMidiMappingManager* Manager = UMidiMappingManager::Get())
+    for (const FRigControlElement* CtrlElem : Controls)
     {
-        // avoid duplicates on re-register
-        Manager->UnregisterTopic(TEXT("Rig."));
+        if (!CtrlElem) continue;
+        const FName ControlName = CtrlElem->GetFName();
 
-        for (const FRigControlElement* CtrlElem : Controls)
-        {
-            if (!CtrlElem) continue;
-            const FName ControlName = CtrlElem->GetFName();
+        FMidiFunction Callback;
+        Callback.BindStatic(&HandleRigMidiControlInput);
 
-            FMidiRegisteredFunction Func;
-            Func.Id = FString::Printf(TEXT("Rig.%s"), *ControlName.ToString());
-            Func.Label = Func.Id;
-
-            const FString FuncIdCopy = Func.Id; // capture by value
-            Func.Callback.BindLambda([FuncIdCopy](const FMidiControlValue& V)
-                {
-                    FToucanMidiRigBinder::OnMidiControlInput(FuncIdCopy, V);
-                });
-
-            Manager->RegisterFunction(Func.Label, Func.Id, Func.Callback);
-        }
-
-        UE_LOG(LogToucanRigBinder, Log, TEXT("Registered %d rig controls from %s"), Controls.Num(), *ControlRig->GetName());
+        const FString FunctionId = FString::Printf(TEXT("Rig.%s"), *ControlName.ToString());
+        Manager->RegisterFunction(FunctionId, FunctionId, Callback);
     }
+
+    UE_LOG(LogToucanRigBinder, Log, TEXT("Registered %d rig controls from %s"), Controls.Num(), *ControlRig->GetName());
 #endif
 }
 

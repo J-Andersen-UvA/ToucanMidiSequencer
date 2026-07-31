@@ -4,10 +4,6 @@
 #include "Widgets/SCompoundWidget.h"
 #include "SeqQueue.h"
 #include "OutputHelper.h"
-#include "Styling/SlateStyle.h"
-#include "Styling/SlateStyleRegistry.h"
-#include "Brushes/SlateImageBrush.h"
-#include "Interfaces/IPluginManager.h"
 
 /**
  * Editing Session main window.

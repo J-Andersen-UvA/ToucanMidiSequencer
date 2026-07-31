@@ -35,6 +35,7 @@
 #include "Containers/Ticker.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
+#include "UObject/UObjectGlobals.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "LevelSequencePlayer.h"
@@ -53,20 +54,52 @@ TWeakObjectPtr<ULevelSequence> FEditingSessionSequencerHelper::ActiveSequence;
 TWeakObjectPtr<USkeletalMeshComponent> FEditingSessionSequencerHelper::ActiveSkeletalMeshComponent;
 TWeakObjectPtr<UControlRig> FEditingSessionSequencerHelper::ActiveRig;
 
-void setLooping(ULevelSequence* LevelSequence)
+void RequestPostAnimationLoadGarbageCollection()
 {
+    static bool bGarbageCollectionPending = false;
+    if (bGarbageCollectionPending)
+    {
+        return;
+    }
+
+    bGarbageCollectionPending = true;
+    FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float)
+    {
+        bGarbageCollectionPending = false;
+
+        if (GIsSavingPackage || IsGarbageCollecting())
+        {
+            return false;
+        }
+
+        TryCollectGarbage(RF_NoFlags, true);
+        return false;
+    }), 0.1f);
+}
+
+void OpenLevelSequenceEditorIfNeededAndSetLooping(ULevelSequence* LevelSequence)
+{
+    if (!LevelSequence || !GEditor)
+    {
+        return;
+    }
+
     if (UAssetEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
     {
-        if (IAssetEditorInstance* Inst = EditorSubsystem->FindEditorForAsset(LevelSequence, /*bFocusIfOpen*/false))
+        IAssetEditorInstance* EditorInstance = EditorSubsystem->FindEditorForAsset(LevelSequence, /*bFocusIfOpen*/false);
+        if (!EditorInstance)
         {
-            if (ILevelSequenceEditorToolkit* Toolkit = static_cast<ILevelSequenceEditorToolkit*>(Inst))
+            EditorSubsystem->OpenEditorForAsset(LevelSequence);
+            EditorInstance = EditorSubsystem->FindEditorForAsset(LevelSequence, /*bFocusIfOpen*/false);
+        }
+
+        if (ILevelSequenceEditorToolkit* Toolkit = static_cast<ILevelSequenceEditorToolkit*>(EditorInstance))
+        {
+            if (TSharedPtr<ISequencer> Sequencer = Toolkit->GetSequencer())
             {
-                if (TSharedPtr<ISequencer> Seq = Toolkit->GetSequencer())
+                if (USequencerSettings* Settings = Sequencer->GetSequencerSettings())
                 {
-                    if (USequencerSettings* Settings = Seq->GetSequencerSettings())
-                    {
-                        Settings->SetLoopMode(ESequencerLoopMode(2));
-                    }
+                    Settings->SetLoopMode(ESequencerLoopMode(2));
                 }
             }
         }
@@ -514,11 +547,7 @@ void FEditingSessionSequencerHelper::LoadNextAnimation(
         return;
     }
 
-    if (UAssetEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
-    {
-        EditorSubsystem->OpenEditorForAsset(LevelSequence);
-        setLooping(LevelSequence);
-    }
+    OpenLevelSequenceEditorIfNeededAndSetLooping(LevelSequence);
 
     RemoveRigFromSequence(LevelSequence);
 
@@ -597,6 +626,7 @@ void FEditingSessionSequencerHelper::LoadNextAnimation(
     }
 
     UE_LOG(LogTemp, Display, TEXT("[ToucanSequencer] Loaded animation '%s' into Level Sequence."), *Animation->GetName());
+    RequestPostAnimationLoadGarbageCollection();
 }
 
 ULevelSequence* FEditingSessionSequencerHelper::CreateOrLoadLevelSequence()
@@ -1042,11 +1072,7 @@ bool FEditingSessionSequencerHelper::OpenCheckpointSequence(const FString& Check
 
     SetActiveSequence(Sequence);
 
-    if (UAssetEditorSubsystem* EditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
-    {
-        EditorSubsystem->OpenEditorForAsset(Sequence);
-        setLooping(Sequence);
-    }
+    OpenLevelSequenceEditorIfNeededAndSetLooping(Sequence);
 
     ActiveSkeletalMeshComponent = nullptr;
     UWorld* World = GEditor->GetEditorWorldContext().World();
