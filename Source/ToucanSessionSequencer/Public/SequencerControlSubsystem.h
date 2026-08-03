@@ -24,6 +24,7 @@ public:
     static ISequencer* GetCurrentOpenSequencer();
     static UMovieSceneSequence* GetCurrentSequence();
     static int32 GetCurrentTimeInFrames();
+    static bool IsSequencerPlaying();
     static void SetCurrentTimeInFrames(int32 Frame);
     static void AdvanceByFrames(int32 DeltaFrames);
     static UControlRig* GetBoundRigFromSequencer(UMovieSceneSequence* Sequence, const FString& RigName);

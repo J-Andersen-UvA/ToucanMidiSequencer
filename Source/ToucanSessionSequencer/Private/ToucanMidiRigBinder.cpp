@@ -126,11 +126,17 @@ void FToucanMidiRigBinder::BindRigChangeListener()
 
 void FToucanMidiRigBinder::OnMidiControlInput(const FString& FunctionId, const FMidiControlValue& V)
 {
+    if (USequencerControlSubsystem::IsSequencerPlaying())
+    {
+        UE_LOG(LogToucanRigBinder, VeryVerbose, TEXT("Ignored %s while Sequencer is playing."), *FunctionId);
+        return;
+    }
+
     FString RigPath;
     GConfig->GetString(TEXT("ToucanEditingSession"), TEXT("LastSelectedRig"), RigPath, GEditorPerProjectIni);
     const FString RigName = FPaths::GetBaseFilename(RigPath);
 
-    UE_LOG(LogToucanRigBinder, Log, TEXT("Triggered %s from %s:%d = %.3f"),
+    UE_LOG(LogToucanRigBinder, VeryVerbose, TEXT("Triggered %s from %s:%d = %.3f"),
         *FunctionId, *V.Device, V.ControlId, V.Value);
 
     UMovieSceneSequence* Sequence = USequencerControlSubsystem::GetCurrentSequence();
@@ -196,7 +202,7 @@ void FToucanMidiRigBinder::KeyframeRigControlAt(
 
     FFrameNumber FrameNum(FrameNumber);
 
-    UE_LOG(LogToucanRigBinder, Log,
+    UE_LOG(LogToucanRigBinder, VeryVerbose,
         TEXT("Keyframing ControlRig '%s' control '%s' at frame %d (%.3f mapped %.3f → %.3f)"),
         *Rig->GetName(), *ControlName.ToString(), FrameNumber, NormalizedValue, Min, Max);
 
@@ -218,7 +224,7 @@ void FToucanMidiRigBinder::KeyframeRigControlAt(
             FrameNum,
             EMovieSceneTimeUnit::DisplayRate);
 
-        UE_LOG(LogToucanRigBinder, Log,
+        UE_LOG(LogToucanRigBinder, VeryVerbose,
             TEXT("Confirmed key on '%s' = %.3f (range %.3f–%.3f)"),
             *ControlName.ToString(), Cur, Min, Max);
     }

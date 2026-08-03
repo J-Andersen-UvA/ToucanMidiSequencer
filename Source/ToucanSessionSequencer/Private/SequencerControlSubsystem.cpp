@@ -63,6 +63,16 @@ int32 USequencerControlSubsystem::GetCurrentTimeInFrames()
     return 0;
 }
 
+bool USequencerControlSubsystem::IsSequencerPlaying()
+{
+    if (ISequencer* Seq = GetCurrentOpenSequencer())
+    {
+        return Seq->GetPlaybackStatus() == EMovieScenePlayerStatus::Playing;
+    }
+
+    return false;
+}
+
 void USequencerControlSubsystem::SetCurrentTimeInFrames(int32 Frame)
 {
     if (ISequencer* Seq = GetCurrentOpenSequencer())
