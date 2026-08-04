@@ -124,6 +124,7 @@ void FToucanMidiRigBinder::BindRigChangeListener()
 
 #endif
 
+#if WITH_MIDIMAPPER
 void FToucanMidiRigBinder::OnMidiControlInput(const FString& FunctionId, const FMidiControlValue& V)
 {
     if (USequencerControlSubsystem::IsSequencerPlaying())
@@ -165,6 +166,7 @@ void FToucanMidiRigBinder::OnMidiControlInput(const FString& FunctionId, const F
     const float Normalized = V.Value; // already 0..1
     KeyframeRigControlNow(Rig, ControlName, Normalized);
 }
+#endif
 
 void FToucanMidiRigBinder::KeyframeRigControlNow(UControlRig* Rig, const FName& ControlName, float NormalizedValue)
 {

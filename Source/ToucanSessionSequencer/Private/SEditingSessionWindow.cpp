@@ -246,7 +246,7 @@ void SEditingSessionWindow::Construct(const FArguments&)
                         + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 12)[BuildSessionControlsRow()]
                         + SVerticalBox::Slot().AutoHeight().Padding(0, 0, 0, 12)[BuildProgressBarSection()]
                         + SVerticalBox::Slot()
-                        .AutoHeight()
+                        .FillHeight(1.f)
                         .Padding(0, 0, 0, 8)
                         [
                             SNew(SBorder)
@@ -257,9 +257,13 @@ void SEditingSessionWindow::Construct(const FArguments&)
                                         [
                                             AddIconAndTextHere(TEXT("queueClipboardWhite"), TEXT("Queue:"), true)
                                         ]
-                                        + SVerticalBox::Slot().FillHeight(1.f).MaxHeight(400.f)
+                                        + SVerticalBox::Slot().FillHeight(1.f)
                                         [
-                                            BuildQueueList()
+                                            SNew(SBox)
+                                                .MinDesiredHeight(160.f)
+                                                [
+                                                    BuildQueueList()
+                                                ]
                                         ]
                                 ]
                         ]

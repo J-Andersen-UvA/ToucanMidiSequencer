@@ -474,6 +474,7 @@ void USequencerControlSubsystem::RegisterSequencerMidiFunctions()
 #endif
 }
 
+#if WITH_MIDIMAPPER
 void USequencerControlSubsystem::OnMidi_TimeControl(const FMidiControlValue& V)
 {
     UE_LOG(LogTemp, Log, TEXT("\tOnMidi_TimeControl val and prev: %f - %f"), V.Value, lastTimeStep);
@@ -516,6 +517,7 @@ void USequencerControlSubsystem::OnMidi_StepBackward(const FMidiControlValue& V)
     if (V.Value > 0.5f)
         StepSequencer(-1);
 }
+#endif
 
 void USequencerControlSubsystem::StepSequencer(int32 Direction)
 {
@@ -531,6 +533,7 @@ void USequencerControlSubsystem::StepSequencer(int32 Direction)
     UE_LOG(LogTemp, Log, TEXT("StepSequencer: dir=%d size=%d"), Direction, StepSize);
 }
 
+#if WITH_MIDIMAPPER
 void USequencerControlSubsystem::OnMidi_PlayHold(const FMidiControlValue& V)
 {
     PlaySequencer(V.Value > 0.5f);
@@ -559,3 +562,4 @@ void USequencerControlSubsystem::OnMidi_SetEndTime(const FMidiControlValue& V)
     if (V.Value > 0.5f)
         SetEndTimeToCurrent();
 }
+#endif

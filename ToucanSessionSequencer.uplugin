@@ -15,11 +15,6 @@
     "EnabledByDefault": true,
     "Plugins": [
         {
-            "Name": "UnrealMidi",
-            "Enabled": true,
-            "Optional": true
-        },
-        {
             "Name": "SequencerAbstraction",
             "Enabled": true
         }

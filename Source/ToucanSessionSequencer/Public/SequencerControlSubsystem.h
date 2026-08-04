@@ -1,7 +1,9 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
+#if WITH_MIDIMAPPER
 #include "MidiTypes.h"
+#endif
 #include "SequencerControlSubsystem.generated.h"
 
 class ISequencer;
@@ -44,6 +46,7 @@ public:
 public:
     static void RegisterSequencerMidiFunctions();
 
+#if WITH_MIDIMAPPER
     static void OnMidi_TimeControl(const FMidiControlValue& V);
     static void OnMidi_StepForward(const FMidiControlValue& V);
     static void OnMidi_StepBackward(const FMidiControlValue& V);
@@ -54,6 +57,7 @@ public:
     static void OnMidi_LargeStepButton(const FMidiControlValue& V);
     static void OnMidi_SetStartTime(const FMidiControlValue& V);
     static void OnMidi_SetEndTime(const FMidiControlValue& V);
+#endif
 
 
 private:

@@ -47,6 +47,7 @@ public:
         UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(
             this, &FToucanSequencerEditorModule::RegisterMenus));
 
+        #if WITH_MIDIMAPPER
         if (FModuleManager::Get().IsModuleLoaded("MidiMapper"))
         {
             USequencerControlSubsystem::RegisterSequencerMidiFunctions();
@@ -55,17 +56,11 @@ public:
         }
         else
         {
-        #if WITH_MIDIMAPPER
-            FModuleManager::Get().LoadModule("MidiMapper");
-            FModuleManager::LoadModuleChecked<IModuleInterface>("MidiMapper");
-            UE_LOG(LogTemp, Log, TEXT("MidiMapper loaded manually by ToucanSessionSequencer."));
-            USequencerControlSubsystem::RegisterSequencerMidiFunctions();
-            FToucanMidiRigBinder::BindRigChangeListener();
-            FToucanMidiRigBinder::RegisterRigControls();
-        #else
-            UE_LOG(LogTemp, Log, TEXT("MidiMapper loading skipped."));
-        #endif
+            UE_LOG(LogTemp, Log, TEXT("MidiMapper integration skipped because the module is not loaded."));
         }
+        #else
+        UE_LOG(LogTemp, Log, TEXT("MidiMapper integration unavailable."));
+        #endif
 
     }
 

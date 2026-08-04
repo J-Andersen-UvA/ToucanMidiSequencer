@@ -47,14 +47,7 @@ public class ToucanSessionSequencer : ModuleRules
             "SequencerAbstraction"
         });
 
-        bool bHasMidiMapper = Directory.Exists(Path.Combine(ModuleDirectory, "../../../UnrealMidi/Source/MidiMapper"));
-        PublicDefinitions.Add("WITH_MIDIMAPPER=" + (bHasMidiMapper ? "1" : "0"));
-
-        if (bHasMidiMapper)
-        {
-            PrivateDependencyModuleNames.Add("MidiMapper");
-            PrivateDependencyModuleNames.Add("MidiMapperEditor");
-        }
+        PublicDefinitions.Add("WITH_MIDIMAPPER=0");
 
     }
 }
